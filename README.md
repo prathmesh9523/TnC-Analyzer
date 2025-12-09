@@ -162,35 +162,14 @@ tc-analyzer/
 ## 🔧 How It Works
 
 ### Architecture
+| Layer                 | Component                         | Responsibilities                                                                                             |
+| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **1. User (Browser)** | User interacts via Chrome toolbar | - Clicks “Analyze This Page” or “Find & Analyze T&C Link”                                                    |
+| **2. UI Layer**       | `popup.html`                      | - Displays UI<br> - Shows risk indicators<br> - Displays summary & results<br> - Handles export              |
+| **3. Logic Layer**    | `popup.js`                        | - `analyzeCurrentPage()`<br> - `analyzeWithAI()`<br> - `parseAIResponse()`<br> - Manages API calls & parsing |
+| **4. Content Script** | `content.js`                      | - Extracts webpage text<br> - Removes ads, navigation, irrelevant content                                    |
+| **5. AI Backend**     | Perplexity / Gemini APIs          | - Receives extracted text<br> - Performs T&C risk analysis<br> - Returns structured JSON                     |
 
-┌─────────────┐
-│ User │
-│ (Browser) │
-└──────┬──────┘
-│
-▼
-┌─────────────────────────────────┐
-│ popup.html (UI) │
-│ - Risk indicators │
-│ - Summary display │
-│ - Export buttons │
-└────────┬────────────────────────┘
-│
-▼
-┌─────────────────────────────────┐
-│ popup.js (Logic) │
-│ - analyzeCurrentPage() │
-│ - analyzeWithAI() │
-│ - parseAIResponse() │
-└────────┬────────────────────────┘
-│
-┌────┴────┐
-▼ ▼
-┌────────┐ ┌────────┐
-│content │ │ AI │
-│ .js │ │ APIs │
-│Extract │ │Analysis│
-└────────┘ └────────┘
 
 
 ### Workflow
@@ -234,7 +213,7 @@ tc-analyzer/
 
 | Tier | Rate Limit | Daily Limit | Cost |
 |------|-----------|-------------|------|
-| Free | 10 requests/min | 250 requests/day | $0 |
+| Free | 10 requests/min | 20 requests/day | $0 |
 
 ---
 

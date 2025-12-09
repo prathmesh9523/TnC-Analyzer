@@ -21,14 +21,15 @@ const obligationsContent = document.getElementById('obligationsContent');
 // Configuration
 const CONFIG = {
   GEMINI_API_KEY: 'AIzaSyB04jJ-2ofokkyjN4_c8W0hIDMMhy3q1yg',
-  OPENAI_API_KEY: 'YOUR_OPENAI_API_KEY_HERE',
-  USE_GEMINI: true,
+  PERPLEXITY_API_KEY: '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', // Add your Perplexity API key here
+  USE_PERPLEXITY: true, // Set to true to use Perplexity (default now)
+  USE_GEMINI: false, // Set to true to use Gemini instead
   MAX_TEXT_LENGTH: 8000
 };
 
 // Rate limiting
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 6000; // 6 seconds for Gemini 2.5 Flash (10 RPM)
+const MIN_REQUEST_INTERVAL = 6000; // 6 seconds cooldown
 
 // Event Listeners
 analyzeBtn.addEventListener('click', analyzeCurrentPage);
@@ -48,7 +49,7 @@ async function analyzeCurrentPage() {
   
   if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
     const waitTime = Math.ceil((MIN_REQUEST_INTERVAL - timeSinceLastRequest) / 1000);
-    showError(`Please wait ${waitTime} seconds before analyzing again. Gemini 2.5 Flash: 10 requests per minute.`);
+    showError(`Please wait ${waitTime} seconds before analyzing again.`);
     return;
   }
   
@@ -193,10 +194,108 @@ async function fetchPageContent(url) {
 async function analyzeWithAI(text) {
   console.log('Sending to AI for analysis...');
   
-  if (CONFIG.USE_GEMINI) {
+  if (CONFIG.USE_PERPLEXITY) {
+    console.log('🔍 Using Perplexity Sonar Pro');
+    return await analyzeWithPerplexity(text);
+  } else if (CONFIG.USE_GEMINI) {
+    console.log('🔮 Using Gemini 2.5 Flash');
     return await analyzeWithGemini(text);
   } else {
-    return await analyzeWithOpenAI(text);
+    throw new Error('No AI model configured. Please set USE_PERPLEXITY or USE_GEMINI to true.');
+  }
+}
+
+// Perplexity API integration - Sonar Pro model
+async function analyzeWithPerplexity(text) {
+  const prompt = `You are a legal expert analyzing Terms & Conditions documents.
+
+CRITICAL: Respond with ONLY valid JSON. No markdown, no explanations, just the JSON object.
+
+Required JSON format:
+{
+  "risk_level": "LOW",
+  "summary": ["point 1", "point 2", "point 3", "point 4", "point 5"],
+  "risky_clauses": [
+    {"clause": "clause description", "risk": "HIGH", "explanation": "why it's risky"}
+  ],
+  "obligations": ["obligation 1", "obligation 2", "obligation 3"]
+}
+
+Analysis requirements:
+1. risk_level: Must be exactly "LOW", "MEDIUM", or "HIGH"
+2. summary: 3-5 clear bullet points explaining the terms in simple language
+3. risky_clauses: Identify concerning terms:
+   - Automatic renewals and hidden billing
+   - Data sharing with third parties
+   - Liability waivers and disclaimers
+   - Hidden fees or unexpected charges
+   - Binding arbitration clauses
+   - Vague permissions or broad rights granted
+   - Account termination conditions
+   - Intellectual property transfers
+4. obligations: What the user must do (pay, provide data, follow restrictions)
+
+Analyze these Terms & Conditions:
+${text}
+
+Respond with ONLY the JSON object.`;
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${CONFIG.PERPLEXITY_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'sonar-pro',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a legal expert who analyzes Terms & Conditions documents. Always respond with valid JSON only, no additional text.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        top_p: 0.9,
+        max_tokens: 2048,
+        stream: false
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Perplexity API Error:', errorData);
+      
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      }
+      
+      if (response.status === 401) {
+        throw new Error('Invalid Perplexity API key. Please add your API key in CONFIG.PERPLEXITY_API_KEY');
+      }
+      
+      throw new Error(`Perplexity API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('📥 Perplexity API Response:', data);
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error('Invalid response structure from Perplexity API');
+    }
+    
+    const aiResponse = data.choices[0].message.content;
+    console.log('📝 Perplexity Response:', aiResponse);
+    
+    return parseAIResponse(aiResponse);
+    
+  } catch (error) {
+    console.error('❌ Error calling Perplexity API:', error);
+    throw error;
   }
 }
 
@@ -286,54 +385,6 @@ Remember: Respond with ONLY the JSON object, nothing else.`;
     console.error('❌ Error calling Gemini API:', error);
     throw error;
   }
-}
-
-// OpenAI API integration (backup)
-async function analyzeWithOpenAI(text) {
-  const prompt = `You are a legal expert analyzing Terms & Conditions documents. Analyze the following Terms & Conditions and provide:
-
-1. RISK_LEVEL: Rate as "LOW", "MEDIUM", or "HIGH"
-2. SUMMARY: 3-5 bullet points summarizing the main terms in simple language
-3. RISKY_CLAUSES: List concerning clauses with brief explanations
-4. OBLIGATIONS: List what the user is required to do
-
-Format your response as JSON:
-{
-  "risk_level": "LOW|MEDIUM|HIGH",
-  "summary": ["point 1", "point 2", ...],
-  "risky_clauses": [{"clause": "...", "risk": "HIGH|MEDIUM", "explanation": "..."}],
-  "obligations": ["obligation 1", "obligation 2", ...]
-}
-
-Terms & Conditions:
-${text}`;
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${CONFIG.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: 'You are a legal expert who analyzes Terms & Conditions. Respond only with valid JSON.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.1,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
-    })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  const aiResponse = data.choices[0].message.content;
-  
-  return parseAIResponse(aiResponse);
 }
 
 // SUPER ROBUST PARSER - handles all edge cases
@@ -433,7 +484,7 @@ function parseAIResponse(response) {
     return {
       risk_level: 'MEDIUM',
       summary: [
-        '⚠️ Gemini 2.5 Flash returned an unexpected format',
+        '⚠️ AI returned an unexpected format',
         'Response received but could not be parsed properly',
         'Please try analyzing this page again',
         'If issue persists, check browser console (F12) for details'
@@ -441,7 +492,7 @@ function parseAIResponse(response) {
       risky_clauses: [{
         clause: 'Parsing Error - See Console',
         risk: 'MEDIUM',
-        explanation: 'Open browser console (F12) to see the full response from Gemini. First 200 chars: ' + response.substring(0, 200)
+        explanation: 'Open browser console (F12) to see the full response. First 200 chars: ' + response.substring(0, 200)
       }],
       obligations: [
         'Review the terms manually',
@@ -628,13 +679,23 @@ function exportSummary() {
   URL.revokeObjectURL(url);
 }
 
-// Settings (placeholder)
+// Settings
 function openSettings() {
-  alert('Settings:\n\n' +
-        'Current Model: Gemini 2.5 Flash\n' +
-        'Rate Limit: 10 requests per minute, 250 per day\n' +
-        'Temperature: 0.1 (maximum consistency)\n\n' +
-        'To change API key, edit CONFIG in popup.js');
+  const currentModel = CONFIG.USE_PERPLEXITY ? 'Perplexity Sonar Pro (~$0.01/analysis)' 
+                     : CONFIG.USE_GEMINI ? 'Gemini 2.5 Flash (Free: 10 RPM, 250/day)'
+                     : 'No model selected';
+  
+  alert('T&C Analyzer Settings\n\n' +
+        `Current Model: ${currentModel}\n\n` +
+        'Available Models:\n' +
+        '  ✅ Perplexity Sonar Pro - Most consistent, ~$0.01 per analysis\n' +
+        '  ✅ Gemini 2.5 Flash - Free tier: 10 requests/min, 250/day\n\n' +
+        'To switch models, edit CONFIG in popup.js:\n' +
+        '  USE_PERPLEXITY: true/false\n' +
+        '  USE_GEMINI: true/false\n\n' +
+        'API Keys:\n' +
+        '  Perplexity: Get at https://www.perplexity.ai/settings/api\n' +
+        '  Gemini: Get at https://aistudio.google.com/apikey');
 }
 
 // Utility: Escape HTML to prevent XSS
@@ -647,5 +708,12 @@ function escapeHtml(text) {
 
 // Initialize
 console.log('🚀 T&C Analyzer loaded');
-console.log('📊 Using Gemini 2.5 Flash with enhanced parser');
-console.log('⚡ Rate limit: 10 requests per minute (6 second cooldown)');
+if (CONFIG.USE_PERPLEXITY) {
+  console.log('🔍 Using Perplexity Sonar Pro');
+  console.log('💰 Cost: ~$0.01 per analysis');
+} else if (CONFIG.USE_GEMINI) {
+  console.log('🔮 Using Gemini 2.5 Flash');
+  console.log('⚡ Rate limit: 10 requests per minute (6 second cooldown)');
+} else {
+  console.log('⚠️ No AI model configured! Set USE_PERPLEXITY or USE_GEMINI to true.');
+}

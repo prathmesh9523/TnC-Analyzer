@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T&C Analyzer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>📄 T&C Analyzer</h1>
+      <p class="tagline">Read Terms & Conditions in seconds</p>
+    </div>
+
+    <!-- Main Action Button -->
+    <div class="action-section">
+      <button id="analyzeBtn" class="analyze-btn">
+        <span class="btn-text">Analyze Terms & Conditions</span>
+      </button>
+      <button id="analyzeLinkBtn" class="analyze-btn secondary">
+        <span class="btn-text">Analyze T&C Link</span>
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingSection" class="loading-section hidden">
+      <div class="spinner"></div>
+      <p class="loading-text">Analyzing Terms & Conditions...</p>
+      <p class="loading-subtext">This may take 5-10 seconds</p>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="results-section hidden">
+      
+      <!-- Risk Score -->
+      <div id="riskScore" class="risk-score">
+        <h3>Risk Assessment</h3>
+        <div id="riskIndicator" class="risk-indicator"></div>
+      </div>
+
+      <!-- Quick Summary -->
+      <div class="summary-section">
+        <h3>📋 Quick Summary</h3>
+        <div id="summaryContent" class="content-box"></div>
+      </div>
+
+      <!-- Risky Clauses -->
+      <div class="risky-section">
+        <h3>⚠️ Risky Clauses</h3>
+        <div id="riskyContent" class="content-box"></div>
+      </div>
+
+      <!-- Key Obligations -->
+      <div class="obligations-section">
+        <h3>✅ Your Obligations</h3>
+        <div id="obligationsContent" class="content-box"></div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button id="exportBtn" class="export-btn">Export Summary</button>
+        <button id="newAnalysisBtn" class="new-analysis-btn">New Analysis</button>
+      </div>
+    </div>
+
+    <!-- Error Section -->
+    <div id="errorSection" class="error-section hidden">
+      <div class="error-icon">❌</div>
+      <p class="error-text" id="errorText"></p>
+      <button id="retryBtn" class="retry-btn">Try Again</button>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings-footer">
+      <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
